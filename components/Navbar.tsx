@@ -8,6 +8,7 @@ import { useShipFastStatus } from "@/lib/shipfast-status";
 const LINKS = [
   { href: "/", label: "Shop" },
   { href: "/track", label: "Track order" },
+  { href: "/demo", label: "Security Demo" },
   { href: "/account", label: "Account" },
 ];
 

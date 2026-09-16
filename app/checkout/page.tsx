@@ -7,7 +7,6 @@ import { useCustomer } from "@/lib/customer-context";
 import { getProduct } from "@/lib/catalog";
 import { formatNaira, shortId } from "@/lib/format";
 import { shipfast, ShipFastError } from "@/lib/shipfast";
-import { payflex, PayFlexError, PayFlexCharge } from "@/lib/payflex";
 import { saveOrder } from "@/lib/orders-store";
 import { useShipFastStatus } from "@/lib/shipfast-status";
 
@@ -23,7 +22,7 @@ const CITIES = [
   "Kaduna",
 ];
 
-type Step = "details" | "payment" | "placing" | "error";
+type Step = "details" | "placing" | "error";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -32,9 +31,7 @@ export default function CheckoutPage() {
   const { online, checking, error: shipfastStatusError, refresh } = useShipFastStatus();
 
   const [step, setStep] = useState<Step>("details");
-  const [zoneNote, setZoneNote] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [paidCharge, setPaidCharge] = useState<PayFlexCharge | null>(null);
 
   const [details, setDetails] = useState({
     fullName: profile?.fullName ?? "",
@@ -42,13 +39,6 @@ export default function CheckoutPage() {
     email: profile?.email ?? "",
     city: profile?.city ?? CITIES[0],
     address: profile?.address ?? "",
-  });
-
-  const [card, setCard] = useState({
-    name: "",
-    number: "",
-    expiry: "",
-    cvv: "",
   });
 
   const total = subtotal + DELIVERY_FEE;
@@ -64,17 +54,16 @@ export default function CheckoutPage() {
   if (items.length === 0 && step === "details") {
     return (
       <div className="mx-auto max-w-content px-4 py-20 text-center sm:px-6">
-        <p className="font-display text-2xl text-ink">
-          Your basket is empty
-        </p>
+        <p className="font-display text-2xl text-ink">Your basket is empty</p>
         <p className="mt-2 text-ink/60">Add something to the basket before checking out.</p>
       </div>
     );
   }
 
-  async function handleDetailsSubmit(e: FormEvent) {
+  async function handlePlaceOrder(e: FormEvent) {
     e.preventDefault();
     setErrorMessage(null);
+
     const reachable = online || (await refresh());
     if (!reachable) {
       setErrorMessage(
@@ -83,73 +72,22 @@ export default function CheckoutPage() {
       );
       return;
     }
-    const saved = saveProfile(details);
-    try {
-      const addr = await shipfast.getCustomerAddress(saved.customerId);
-      setZoneNote(`Delivery zone confirmed by ShipFast: ${addr.city}, ${addr.country}.`);
-      setStep("payment");
-    } catch (err) {
-      setZoneNote(null);
-      if (err instanceof ShipFastError) {
-        setErrorMessage(
-          `ShipFast address lookup failed — ${err.message}. Checkout cannot continue without a live logistics response.`
-        );
-      } else {
-        setErrorMessage(
-          "ShipFast address lookup failed. Checkout cannot continue without a live logistics response."
-        );
-      }
-    }
-  }
 
-  async function handlePaymentSubmit(e: FormEvent) {
-    e.preventDefault();
-    setErrorMessage(null);
+    const saved = saveProfile(details);
     setStep("placing");
 
-    const customerId = profile?.customerId ?? saveProfile(details).customerId;
-    const reachable = online || (await refresh());
-    if (!reachable) {
-      setStep("error");
-      setErrorMessage(
-        shipfastStatusError ??
-          "Cannot reach the ShipFast API. Payment is blocked until logistics is online."
-      );
-      return;
-    }
-
     try {
-      const charge = await payflex.charge({
-        amount: total,
-        currency: "NGN",
-        customer_id: customerId,
-        reference: shortId("chk"),
-      });
-      setPaidCharge(charge);
-      await createShippingOrder(charge, customerId);
-    } catch (err) {
-      setStep("error");
-      if (err instanceof PayFlexError) {
-        setErrorMessage(
-          `Payment didn't go through — ${err.message}. Check the card details and try again.`
-        );
-      } else {
-        setErrorMessage("Payment didn't go through. Check the card details and try again.");
-      }
-    }
-  }
-
-  async function createShippingOrder(charge: PayFlexCharge, customerId: string) {
-    try {
+      await shipfast.getCustomerAddress(saved.customerId);
+      const paymentId = `sim_${shortId("pay")}`;
       const order = await shipfast.createOrder({
-        customer_id: customerId,
+        customer_id: saved.customerId,
         destination_city: details.city,
         items_count: totalItems,
       });
       saveOrder({
         localId: shortId("loc"),
         shipfastOrderId: order.order_id,
-        paymentId: charge.payment_id,
+        paymentId,
         trackingNumber: order.tracking_number,
         carrier: order.carrier,
         status: order.status,
@@ -165,25 +103,14 @@ export default function CheckoutPage() {
       setStep("error");
       if (err instanceof ShipFastError) {
         setErrorMessage(
-          `Payment of ${formatNaira(total)} was received (ref ${charge.payment_id}), but we couldn't book delivery — ${err.message}. Try again, or keep this reference for support.`
+          `ShipFast did not complete this order — ${err.message}. Payment was only simulated; nothing was charged.`
         );
       } else {
         setErrorMessage(
-          `Payment of ${formatNaira(total)} was received (ref ${charge.payment_id}), but we couldn't book delivery. Try again, or keep this reference for support.`
+          "ShipFast did not complete this order. Payment was only simulated; nothing was charged."
         );
       }
     }
-  }
-
-  async function retryShipping() {
-    if (!paidCharge) {
-      setStep("payment");
-      return;
-    }
-    const customerId = profile?.customerId ?? saveProfile(details).customerId;
-    setErrorMessage(null);
-    setStep("placing");
-    await createShippingOrder(paidCharge, customerId);
   }
 
   return (
@@ -205,7 +132,7 @@ export default function CheckoutPage() {
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_320px]">
         <div>
           {step === "details" && (
-            <form onSubmit={handleDetailsSubmit} className="space-y-5 border border-ink/10 bg-white p-6">
+            <form onSubmit={handlePlaceOrder} className="space-y-5 border border-ink/10 bg-white p-6">
               <h2 className="font-display text-xl text-ink">Delivery details</h2>
               <Field label="Full name">
                 <input
@@ -259,85 +186,17 @@ export default function CheckoutPage() {
                   placeholder="Street, house number, landmark"
                 />
               </Field>
+              <p className="border border-leaf/30 bg-leaf-tint px-3 py-2 text-sm text-leaf">
+                Payment is simulated for this demo. PayFlex is not called. Placing
+                the order books delivery on the live ShipFast API immediately.
+              </p>
               <button
                 type="submit"
                 disabled={!online && !checking}
-                className="w-full border border-indigo bg-indigo py-3 text-sm font-medium text-parchment hover:bg-indigo-deep disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full border border-ochre-deep bg-ochre py-3 text-sm font-medium text-white hover:bg-ochre-deep disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Continue to payment
+                Place order {formatNaira(total)}
               </button>
-            </form>
-          )}
-
-          {step === "payment" && (
-            <form onSubmit={handlePaymentSubmit} className="space-y-5 border border-ink/10 bg-white p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-xl text-ink">Payment</h2>
-                <button
-                  type="button"
-                  onClick={() => setStep("details")}
-                  className="text-sm text-indigo-deep hover:underline"
-                >
-                  Edit delivery details
-                </button>
-              </div>
-              {zoneNote && (
-                <p className="border border-leaf/30 bg-leaf-tint px-3 py-2 text-sm text-leaf">
-                  {zoneNote}
-                </p>
-              )}
-              <Field label="Name on card">
-                <input
-                  required
-                  value={card.name}
-                  onChange={(e) => setCard({ ...card, name: e.target.value })}
-                  className="input"
-                  placeholder="As shown on card"
-                />
-              </Field>
-              <Field label="Card number">
-                <input
-                  required
-                  inputMode="numeric"
-                  maxLength={19}
-                  value={card.number}
-                  onChange={(e) => setCard({ ...card, number: e.target.value })}
-                  className="input"
-                  placeholder="4111 1111 1111 1111"
-                />
-              </Field>
-              <div className="grid grid-cols-2 gap-5">
-                <Field label="Expiry">
-                  <input
-                    required
-                    value={card.expiry}
-                    onChange={(e) => setCard({ ...card, expiry: e.target.value })}
-                    className="input"
-                    placeholder="MM/YY"
-                  />
-                </Field>
-                <Field label="CVV">
-                  <input
-                    required
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={card.cvv}
-                    onChange={(e) => setCard({ ...card, cvv: e.target.value })}
-                    className="input"
-                    placeholder="123"
-                  />
-                </Field>
-              </div>
-              <button
-                type="submit"
-                className="w-full border border-ochre-deep bg-ochre py-3 text-sm font-medium text-white hover:bg-ochre-deep"
-              >
-                Pay {formatNaira(total)}
-              </button>
-              <p className="text-xs text-ink/45">
-                This is a demo checkout. Card details are sent only to the PayFlex
-                sandbox and are not stored.
-              </p>
             </form>
           )}
 
@@ -345,7 +204,7 @@ export default function CheckoutPage() {
             <div className="border border-ink/10 bg-white p-10 text-center">
               <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-indigo/30 border-t-indigo" />
               <p className="mt-4 font-display text-lg text-ink">
-                {paidCharge ? "Booking your delivery…" : "Processing payment…"}
+                Booking your delivery with ShipFast…
               </p>
             </div>
           )}
@@ -354,14 +213,15 @@ export default function CheckoutPage() {
             <div className="space-y-4 border border-clay/30 bg-clay-tint p-6">
               <h2 className="font-display text-xl text-clay">Something needs your attention</h2>
               <p className="text-sm text-ink/80">{errorMessage}</p>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={paidCharge ? retryShipping : () => setStep("payment")}
-                  className="border border-indigo bg-indigo px-4 py-2 text-sm font-medium text-parchment hover:bg-indigo-deep"
-                >
-                  {paidCharge ? "Retry booking delivery" : "Back to payment"}
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  setErrorMessage(null);
+                  setStep("details");
+                }}
+                className="border border-indigo bg-indigo px-4 py-2 text-sm font-medium text-parchment hover:bg-indigo-deep"
+              >
+                Back to checkout
+              </button>
             </div>
           )}
         </div>
@@ -401,8 +261,7 @@ export default function CheckoutPage() {
 function Steps({ current }: { current: Step }) {
   const order: { key: Step[]; label: string }[] = [
     { key: ["details"], label: "Delivery" },
-    { key: ["payment"], label: "Payment" },
-    { key: ["placing", "error"], label: "Confirmation" },
+    { key: ["placing", "error"], label: "ShipFast booking" },
   ];
   return (
     <div className="mt-4 flex items-center gap-3 text-sm">

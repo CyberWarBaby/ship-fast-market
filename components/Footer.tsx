@@ -20,8 +20,8 @@ export default function Footer() {
           <div>
             <p className="text-sm font-medium text-parchment">Payments</p>
             <p className="mt-2 text-sm text-parchment/60">
-              Card and bank transfer, processed securely by PayFlex. Pay on
-              delivery coming soon.
+              Demo checkout simulates payment, then books delivery on the live
+              ShipFast logistics API.
             </p>
           </div>
         </div>

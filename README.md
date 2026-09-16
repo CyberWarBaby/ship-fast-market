@@ -12,8 +12,7 @@ If ShipFast is down, checkout, shipping and tracking are blocked.
 
 | Service | Default | Used for |
 |---|---|---|
-| ShipFast | `http://localhost:8002` | Health, address lookup, create order, track order |
-| PayFlex | `http://localhost:8006` | Charge payment |
+| ShipFast | `https://shipfast-api.onrender.com` | Health, address lookup, create order, track order |
 
 ```bash
 npm install
@@ -21,8 +20,9 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Start ShipFast (and PayFlex) **before** using checkout. The navbar shows
-**ShipFast live** or **ShipFast down**.
+ShipFast must be reachable before checkout. The navbar shows
+**ShipFast live** or **ShipFast down**. Payment is simulated in the shop;
+PayFlex is not required.
 
 ## Live ShipFast calls (never stubbed)
 
@@ -31,7 +31,7 @@ Start ShipFast (and PayFlex) **before** using checkout. The navbar shows
 - `POST /orders` — required to finish checkout
 - `GET /orders/{order_id}` — tracking page
 
-PayFlex: `POST /payments/charge`. `/admin/*` is never called.
+`GET /admin/internal-stats` is only called from `/demo` (CipherGuard Security Demo).
 
 If address lookup or order create fails, checkout stops. There is no fake
 order id or fake “success” in the frontend.
@@ -45,9 +45,9 @@ URLs in production.
 
 ## What is local vs live
 
-- **Local (shop-owned):** product catalog, cart, name/phone form. ShipFast has no catalog API.
+- **Local (shop-owned):** product catalog, cart, name/phone form, simulated payment.
 - **Live ShipFast:** address, shipping, orders, tracking.
-- **Live PayFlex:** payment charge.
+- **Hackathon demo (`/demo`):** legitimate ShipFast requests, plus a restricted `/admin/internal-stats` probe.
 
 Order history in `localStorage` is only a copy of a response **after**
 ShipFast actually created the order.

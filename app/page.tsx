@@ -37,6 +37,12 @@ export default function HomePage() {
             >
               Track an existing order
             </Link>
+            <Link
+              href="/demo"
+              className="text-sm font-medium text-clay underline decoration-clay/30 underline-offset-4 hover:decoration-clay"
+            >
+              CipherGuard Security Demo
+            </Link>
           </div>
         </div>
 

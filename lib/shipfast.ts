@@ -1,14 +1,15 @@
 /**
- * Thin client for the ShipFast Logistics mock API, always called through the
- * same-origin /api/shipfast/* rewrite (see next.config.js) so no CORS setup
- * is needed on ShipFast itself.
+ * Thin client for the ShipFast Logistics API, always called through the
+ * same-origin /api/shipfast/* rewrite (see next.config.js).
  *
- * Only the endpoints in shop-handoff/docs/API.md's public surface are used:
+ * Storefront checkout uses only the public surface:
  *   GET  /health
  *   GET  /orders/{order_id}
  *   POST /orders
  *   GET  /customers/{customer_id}/address
- * /admin/internal-stats is never called from this app.
+ *
+ * GET /admin/internal-stats is used only from the CipherGuard Security Demo
+ * page, to simulate a compromised app probing a restricted third-party route.
  */
 
 const BASE = "/api/shipfast";
@@ -53,7 +54,40 @@ async function handle<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface ShipFastRawResult {
+  method: string;
+  path: string;
+  status: number;
+  ok: boolean;
+  body: unknown;
+}
+
+async function raw(
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<ShipFastRawResult> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    cache: "no-store",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let parsed: unknown = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
+  }
+  return { method, path, status: res.status, ok: res.ok, body: parsed };
+}
+
 export const shipfast = {
+  raw,
+
   health(): Promise<{ status: string }> {
     return fetch(`${BASE}/health`, { cache: "no-store" }).then((r) => handle(r));
   },
