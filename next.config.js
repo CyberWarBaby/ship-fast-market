@@ -11,7 +11,8 @@
  * (e.g. VPS B / VPS C in the CipherGuard multi-VPS deployment guide) via
  * environment variables — see .env.local.example.
  */
-const SHIPFAST_UPSTREAM_URL = process.env.SHIPFAST_UPSTREAM_URL || "http://localhost:8002";
+const SHIPFAST_UPSTREAM_URL =
+  process.env.SHIPFAST_UPSTREAM_URL || "https://shipfast-api.onrender.com";
 const PAYFLEX_UPSTREAM_URL = process.env.PAYFLEX_UPSTREAM_URL || "http://localhost:8006";
 
 /** @type {import('next').NextConfig} */
