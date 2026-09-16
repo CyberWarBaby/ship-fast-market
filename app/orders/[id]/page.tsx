@@ -158,6 +158,16 @@ export default function OrderTrackingPage({
                   <dd className="font-medium">{formatNaira(localRecord.amountNaira)}</dd>
                 </div>
                 <div className="flex justify-between">
+                  <dt className="text-ink/60">Method</dt>
+                  <dd className="font-medium">
+                    {localRecord.paymentMethod === "bank"
+                      ? "Bank transfer (demo)"
+                      : localRecord.paymentMethod === "cod"
+                        ? "Cash on delivery"
+                        : "Card (demo)"}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
                   <dt className="text-ink/60">Reference</dt>
                   <dd className="font-medium">{localRecord.paymentId}</dd>
                 </div>

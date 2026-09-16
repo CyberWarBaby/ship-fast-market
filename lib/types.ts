@@ -32,10 +32,13 @@ export interface CustomerProfile {
   address: string;
 }
 
+export type PaymentMethod = "card" | "bank" | "cod";
+
 export interface OrderRecord {
   localId: string;
   shipfastOrderId: string;
   paymentId: string;
+  paymentMethod?: PaymentMethod;
   trackingNumber: string;
   carrier: string;
   status: string;

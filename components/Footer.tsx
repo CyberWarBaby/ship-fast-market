@@ -20,8 +20,8 @@ export default function Footer() {
           <div>
             <p className="text-sm font-medium text-parchment">Payments</p>
             <p className="mt-2 text-sm text-parchment/60">
-              Demo checkout simulates payment, then books delivery on the live
-              ShipFast logistics API.
+              Card, bank transfer or cash on delivery (demo). Place order books
+              delivery on the live ShipFast API.
             </p>
           </div>
         </div>
